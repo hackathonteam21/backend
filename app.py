@@ -88,7 +88,7 @@ def get_tweet(tweet_id):
         })
 
 @app.route('/tweets/<int:tweets_id>',methods=['PUT'])
-def update_registration(tweet_id):
+def update_tweet(tweet_id):
     tweet = Tweet.query.get(tweet_id)
     if not tweet:
         abort(404)  
@@ -103,8 +103,9 @@ def update_registration(tweet_id):
         'latitude':tweet.latitude,
         'longitude':tweet.latitude,
         'user_id':tweet.user_id}), 200
+    
 @app.route('/tweets/<int:tweets_id>', methods=['DELETE'])
-def delete_user(tweet_id):
+def delete_tweet(tweet_id):
     tweet = User.query.get(tweet_id)
     if not tweet:
         abort(404)  
@@ -141,6 +142,41 @@ def get_route(route_id):
         'end_point':route.end_point,
         'waypoint':waypoints_data})
 
+@app.route('/routes/<int:route_id>', methods=['PUT'])
+def update_route(route_id):
+    route = Route.query.get_or_404(route_id)
+    data = request.get_json()
+    route.start_point = data.get('start_point', route.start_point)
+    route.end_point = data.get('end_point', route.end_point)
+    db.session.commit()
+    return jsonify({'id':route.id,
+                    'user_id':route.user_id,
+                    'start_point':route.start_point,
+                    'end_point':route.end_point
+                    }), 200
+    
+@app.route('/waypoints/<int:waypoint_id>', methods=['PUT'])
+def update_waypoint(waypoint_id):
+    waypoint = Waypoint.query.get_or_404(waypoint_id)
+    data = request.get_json()
+    waypoint.location = data.get('location', waypoint.location)
+    
+    db.session.commit()
+    return jsonify({'waypoint':waypoint}), 200
+
+@app.route('/routes/<int:route_id>', methods=['DELETE'])
+def delete_route(route_id):
+    route = Route.query.get_or_404(route_id)
+    db.session.delete(route)
+    db.session.commit()
+    return jsonify({'message': '削除に成功しました'}), 200
+
+@app.route('/waypoints/<int:waypoint_id>', methods=['DELETE'])
+def delete_waypoint(waypoint_id):
+    waypoint = Waypoint.query.get_or_404(waypoint_id)
+    db.session.delete(waypoint)
+    db.session.commit()
+    return jsonify({'message': '削除に成功しました'}), 200
 #お気に入り登録、解除
 @app.route('/routes/<int:route_id>/favorite', methods=['POST'])
 def favorite_route(route_id):
