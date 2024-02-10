@@ -18,6 +18,8 @@ class Tweet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
     adress = db.Column(db.String(140), nullable=False)
+    latitude = db.Column(db.String(140), nullable=False)
+    longitude = db.Column(db.String(140), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 #経路情報
 class Route(db.Model):
@@ -60,14 +62,17 @@ def update_user(user_id):
 @app.route('/tweets',methods=['POST'])
 def create_tweet():
     data=request.get_json()
-    tweet=Tweet(name=data['name'],adress=data['adress'],user_id=['user_id'])
+    tweet=Tweet(name=data['name'],adress=data['adress'],user_id=data['user_id'],latitude=data['latitude'],longitude=data['longitude'])
     db.session.add(tweet)
     db.session.commit()
     return jsonify({
         'id':tweet.id,
         'name':tweet.name,
         'adress':tweet.adress,
-        'user_id':tweet.user_id}),201
+        'latitude':tweet.latitude,
+        'longitude':tweet.latitude,
+        'user_id':tweet.user_id
+        }),201
 
 @app.route('/tweets/<int:tweets_id>',methods=['GET'])
 def get_tweet(tweet_id):
@@ -76,7 +81,10 @@ def get_tweet(tweet_id):
         'id': tweet.id,
         'name':tweet.name,
         'adress':tweet.adress,
-        'user_id':tweet.user_id})
+        'latitude':tweet.latitude,
+        'longitude':tweet.latitude,
+        'user_id':tweet.user_id,
+        })
 
 @app.route('/tweets/<int:tweets_id>',methods=['PUT'])
 def update_registration(tweet_id):
@@ -91,6 +99,8 @@ def update_registration(tweet_id):
         'id': tweet.id, 
         'name': tweet.name,
         'adress':tweet.adress,
+        'latitude':tweet.latitude,
+        'longitude':tweet.latitude,
         'user_id':tweet.user_id}), 200
 @app.route('/tweets/<int:tweets_id>', methods=['DELETE'])
 def delete_user(tweet_id):
