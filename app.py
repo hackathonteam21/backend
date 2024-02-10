@@ -28,6 +28,7 @@ class Route(db.Model):
     start_point = db.Column(db.String(128), nullable=False)
     end_point = db.Column(db.String(128), nullable=False)
     waypoints = db.relationship('Waypoint', backref='route', lazy=True)
+    favorited_by = db.relationship('User', backref='favorited_route', uselist=False)
 class Waypoint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     route_id = db.Column(db.Integer, db.ForeignKey('route.id'), nullable=False)
@@ -126,9 +127,11 @@ def create_route():
         db.session.add(waypoint)
     db.session.commit()
     return jsonify({'route_id':route.id,'waypoints':len(waypoints)}),201
+
 @app.route('/routes/<int:route_id>',methods=['GET'])
 def get_route(route_id):
     route=Route.query.get_or_404(route_id)
+    db.session.refresh(route)
     waypoints = Waypoint.query.filter_by(route_id=route.id).all()
     waypoints_data = [{'id': wp.id, 'location': wp.location} for wp in waypoints]
     return jsonify({
@@ -138,8 +141,24 @@ def get_route(route_id):
         'end_point':route.end_point,
         'waypoint':waypoints_data})
 
+#お気に入り登録、解除
+@app.route('/routes/<int:route_id>/favorite', methods=['POST'])
+def favorite_route(route_id):
+    route = Route.query.get_or_404(route_id)
+    user_id = request.json.get('user_id')
+    if route.favorited_by:
+        return jsonify({'message': '既にお気に入り登録しています。'}), 400
+    route.user_id = user_id
+    db.session.commit()
+    return jsonify({'message': 'Route favorited successfully'}), 200
 
-
-
+@app.route('/routes/<int:route_id>/unfavorite', methods=['POST'])
+def unfavorite_route(route_id):
+    route = Route.query.get_or_404(route_id)
+    if not route.favorited_by:
+        return jsonify({'message': 'お気に入りに登録されていません。'}), 400
+    route.user_id = None
+    db.session.commit()
+    return jsonify({'message': 'お気に入りを解除しました。'}), 200
 if __name__ == "__main__":
     app.run(debug=True)
