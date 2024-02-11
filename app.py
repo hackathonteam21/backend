@@ -14,15 +14,15 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 #Access-Control-Allow-Credentials
 ALLOWED_ORIGINS = ['http://example.com']
-# @app.after_request
-# def after_request_func(response):
-#     origin = request.headers.get('Origin')
-#     if origin in ALLOWED_ORIGINS:
-#         response.headers.add('Access-Control-Allow-Origin', origin)
-#         response.headers.add('Access-Control-Allow-Credentials', 'true')
-#         response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-#         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-#     return response
+@app.after_request
+def after_request_func(response):
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    return response
 #ユーザー
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -33,8 +33,8 @@ class Point(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
     address = db.Column(db.String(140), nullable=False)
-    latitude = db.Column(db.Flaot(140), nullable=False)
-    longitude = db.Column(db.Flaot(140), nullable=False)
+    latitude = db.Column(db.Float(140), nullable=False)
+    longitude = db.Column(db.Float(140), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 #経路情報
 class Route(db.Model):
@@ -42,15 +42,19 @@ class Route(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     start_point = db.Column(db.String(128), nullable=False)
     end_point = db.Column(db.String(128), nullable=False)
+    start_point_id = db.Column(db.Integer, db.ForeignKey('point.id'), nullable=False)  
+    end_point_id = db.Column(db.Integer, db.ForeignKey('point.id'), nullable=False)  
     waypoints = db.relationship('Waypoint', backref='route', lazy=True)
     favorited = db.Column(db.Boolean, default=False)
+    start_location = db.relationship('Location', foreign_keys=[start_point_id], uselist=False, backref='route_start')
+    end_location = db.relationship('Location', foreign_keys=[end_point_id], uselist=False, backref='route_end')
 class Waypoint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     route_id = db.Column(db.Integer, db.ForeignKey('route.id'), nullable=False)
     location = db.Column(db.String(128), nullable=False)
-# @login_manager.user_loader
-# def load_user(user_id):
-#     return User.query.get(int(user_id))
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 #ユーザー登録
 @app.route('/users',methods=['POST'])
 def create_user():
@@ -61,11 +65,14 @@ def create_user():
     db.session.commit()
     return jsonify({'id':user.id,'username':user.username}),201
 
-@app.route('/users/<int:user_id>',methods=['GET'])
+@app.route('/users',methods=['GET'])
+@login_required
 def get_user(user_id):
     user=User.query.get_or_404(user_id)
-    return jsonify({'username':user.username,'password':user.password})
+    return jsonify({'username':user.username,
+                    'password':user.password})
 @app.route('/users/<int:user_id>',methods=['PUT'])
+@login_required
 def update_user(user_id):
     user = User.query.get(user_id)
     if not user:
@@ -79,6 +86,7 @@ def update_user(user_id):
     return jsonify({'id': user.id, 'username': user.username}), 200
 #住所登録
 @app.route('/points',methods=['POST'])
+@login_required
 def create_point():
     data=request.get_json()
     point=Point(name=data['name'],adress=data['address'],user_id=data['user_id'],latitude=data['latitude'],longitude=data['longitude'])
@@ -93,7 +101,8 @@ def create_point():
         'user_id':point.user_id
         }),201
 
-@app.route('/points/<int:points_id>',methods=['GET'])
+@app.route('/points',methods=['GET'])
+@login_required
 def get_point(user_id):
     point=Point.query.filter_by(user_id=user_id).all()
     point_data=[{
@@ -107,13 +116,14 @@ def get_point(user_id):
     return jsonify(point_data),200
 
 @app.route('/points/<int:points_id>',methods=['PUT'])
+@login_required
 def update_point(point_id):
     point = Point.query.get(point_id)
     if not point:
         abort(404)  
     data = request.get_json()
     point.name=data.get('name',point.name)
-    point.adress=data.get('adress',point.adress)
+    point.adress=data.get('address',point.adress)
     db.session.commit()
     return jsonify({
         'id': point.id, 
@@ -124,6 +134,7 @@ def update_point(point_id):
         'user_id':point.user_id}), 200
     
 @app.route('/points/<int:points_id>', methods=['DELETE'])
+@login_required
 def delete_point(point_id):
     point = Point.query.get(point_id)
     if not point:
@@ -148,7 +159,8 @@ def create_route():
     db.session.commit()
     return jsonify({'route_id':route.id,'waypoints':len(waypoints)}),201
 
-@app.route('/routes/<int:route_id>',methods=['GET'])
+@app.route('/routes',methods=['GET'])
+@login_required
 def get_route(route_id):
     route=Route.query.get_or_404(route_id)
     db.session.refresh(route)
@@ -162,6 +174,7 @@ def get_route(route_id):
         'waypoint':waypoints_data})
 
 @app.route('/routes/<int:route_id>', methods=['PUT'])
+@login_required
 def update_route(route_id):
     route = Route.query.get_or_404(route_id)
     data = request.get_json()
@@ -175,6 +188,7 @@ def update_route(route_id):
                     }), 200
     
 @app.route('/waypoints/<int:waypoint_id>', methods=['PUT'])
+@login_required
 def update_waypoint(waypoint_id):
     waypoint = Waypoint.query.get_or_404(waypoint_id)
     data = request.get_json()
@@ -184,6 +198,7 @@ def update_waypoint(waypoint_id):
     return jsonify({'waypoint':waypoint}), 200
 
 @app.route('/routes/<int:route_id>', methods=['DELETE'])
+@login_required
 def delete_route(route_id):
     route = Route.query.get_or_404(route_id)
     db.session.delete(route)
@@ -191,6 +206,7 @@ def delete_route(route_id):
     return jsonify({'message': '削除に成功しました'}), 200
 
 @app.route('/waypoints/<int:waypoint_id>', methods=['DELETE'])
+@login_required
 def delete_waypoint(waypoint_id):
     waypoint = Waypoint.query.get_or_404(waypoint_id)
     db.session.delete(waypoint)
@@ -198,6 +214,7 @@ def delete_waypoint(waypoint_id):
     return jsonify({'message': '削除に成功しました'}), 200
 #お気に入り登録、解除
 @app.route('/routes/<int:route_id>/favorite', methods=['POST'])
+@login_required
 def favorite_route(route_id):
     route = Route.query.get_or_404(route_id)
     user_id = request.json.get('user_id')
@@ -208,6 +225,7 @@ def favorite_route(route_id):
     return jsonify({'message': 'Route favorited successfully'}), 200
 
 @app.route('/routes/<int:route_id>/unfavorite', methods=['POST'])
+@login_required
 def unfavorite_route(route_id):
     route = Route.query.get_or_404(route_id)
     if not route.favorited:
@@ -217,6 +235,7 @@ def unfavorite_route(route_id):
     return jsonify({'message': 'お気に入りを解除しました。'}), 200
 
 @app.route('/user/<int:user_id>/favorited_routes', methods=['GET'])
+@login_required
 def get_favorited_routes(user_id):
     favorited_routes = Route.query.filter_by(user_id=user_id, favorited=True).all()
     data = [{

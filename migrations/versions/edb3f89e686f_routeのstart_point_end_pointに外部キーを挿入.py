@@ -21,8 +21,8 @@ def upgrade():
     with op.batch_alter_table('route', schema=None) as batch_op:
         batch_op.add_column(sa.Column('start_point_id', sa.Integer(), nullable=True))
         batch_op.add_column(sa.Column('end_point_id', sa.Integer(), nullable=True))
-        batch_op.create_foreign_key(None, 'point', ['end_point_id'], ['id'])
-        batch_op.create_foreign_key(None, 'point', ['start_point_id'], ['id'])
+        batch_op.create_foreign_key('fk_route_end_point_id', 'point', ['end_point_id'], ['id'])
+        batch_op.create_foreign_key('fk_route_start_point_id', 'point', ['start_point_id'], ['id'])
 
     # ### end Alembic commands ###
 
