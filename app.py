@@ -157,7 +157,13 @@ def create_route():
     db.session.add(route)
     db.session.flush()
     for waypoint_data in waypoints:
-        waypoint=Waypoint(route_id=route.id,waypoint=waypoint_data['waypoint'])
+        point=Point(
+            name=waypoint_data['name'],
+            address=waypoint_data['address'],
+            latitude=waypoint_data['latitude'], 
+            longitude=waypoint_data['longitude'],
+            user_id=user_id
+        )
         db.session.add(waypoint)
     db.session.commit()
     return jsonify({'route_id':route.id,'waypoints':len(waypoints)}),201
