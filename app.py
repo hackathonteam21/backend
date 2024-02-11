@@ -2,24 +2,39 @@ from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash,check_password_hash
+from flask_login import LoginManager,login_required
 import os
+
 app=Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+login_manager = LoginManager()
+login_manager.init_app(app)
+#Access-Control-Allow-Credentials
+ALLOWED_ORIGINS = ['http://example.com']
+# @app.after_request
+# def after_request_func(response):
+#     origin = request.headers.get('Origin')
+#     if origin in ALLOWED_ORIGINS:
+#         response.headers.add('Access-Control-Allow-Origin', origin)
+#         response.headers.add('Access-Control-Allow-Credentials', 'true')
+#         response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+#         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+#     return response
 #ユーザー
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), nullable=False, unique=True)
     password = db.Column(db.String(25))
 #住所情報
-class Tweet(db.Model):
+class Point(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
-    adress = db.Column(db.String(140), nullable=False)
-    latitude = db.Column(db.String(140), nullable=False)
-    longitude = db.Column(db.String(140), nullable=False)
+    address = db.Column(db.String(140), nullable=False)
+    latitude = db.Column(db.Flaot(140), nullable=False)
+    longitude = db.Column(db.Flaot(140), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 #経路情報
 class Route(db.Model):
@@ -28,11 +43,14 @@ class Route(db.Model):
     start_point = db.Column(db.String(128), nullable=False)
     end_point = db.Column(db.String(128), nullable=False)
     waypoints = db.relationship('Waypoint', backref='route', lazy=True)
-    favorited_by = db.relationship('User', backref='favorited_route', uselist=False)
+    favorited = db.Column(db.Boolean, default=False)
 class Waypoint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     route_id = db.Column(db.Integer, db.ForeignKey('route.id'), nullable=False)
     location = db.Column(db.String(128), nullable=False)
+# @login_manager.user_loader
+# def load_user(user_id):
+#     return User.query.get(int(user_id))
 #ユーザー登録
 @app.route('/users',methods=['POST'])
 def create_user():
@@ -43,7 +61,7 @@ def create_user():
     db.session.commit()
     return jsonify({'id':user.id,'username':user.username}),201
 
-@app.route('/user/<int:user_id>',methods={'GET'})
+@app.route('/users/<int:user_id>',methods=['GET'])
 def get_user(user_id):
     user=User.query.get_or_404(user_id)
     return jsonify({'username':user.username,'password':user.password})
@@ -60,56 +78,57 @@ def update_user(user_id):
     db.session.commit()
     return jsonify({'id': user.id, 'username': user.username}), 200
 #住所登録
-@app.route('/tweets',methods=['POST'])
-def create_tweet():
+@app.route('/points',methods=['POST'])
+def create_point():
     data=request.get_json()
-    tweet=Tweet(name=data['name'],adress=data['adress'],user_id=data['user_id'],latitude=data['latitude'],longitude=data['longitude'])
-    db.session.add(tweet)
+    point=Point(name=data['name'],adress=data['address'],user_id=data['user_id'],latitude=data['latitude'],longitude=data['longitude'])
+    db.session.add(point)
     db.session.commit()
     return jsonify({
-        'id':tweet.id,
-        'name':tweet.name,
-        'adress':tweet.adress,
-        'latitude':tweet.latitude,
-        'longitude':tweet.latitude,
-        'user_id':tweet.user_id
+        'id':point.id,
+        'name':point.name,
+        'address':point.adress,
+        'latitude':point.latitude,
+        'longitude':point.longitude,
+        'user_id':point.user_id
         }),201
 
-@app.route('/tweets/<int:tweets_id>',methods=['GET'])
-def get_tweet(tweet_id):
-    tweet=Tweet.query.get_or_404(tweet_id)
-    return jsonify({
-        'id': tweet.id,
-        'name':tweet.name,
-        'adress':tweet.adress,
-        'latitude':tweet.latitude,
-        'longitude':tweet.latitude,
-        'user_id':tweet.user_id,
-        })
+@app.route('/points/<int:points_id>',methods=['GET'])
+def get_point(user_id):
+    point=Point.query.filter_by(user_id=user_id).all()
+    point_data=[{
+        'id': point.id,
+        'name':point.name,
+        'address':point.adress,
+        'latitude':point.latitude,
+        'longitude':point.longitude,
+        'user_id':point.user_id,
+    } for point in point]
+    return jsonify(point_data),200
 
-@app.route('/tweets/<int:tweets_id>',methods=['PUT'])
-def update_tweet(tweet_id):
-    tweet = Tweet.query.get(tweet_id)
-    if not tweet:
+@app.route('/points/<int:points_id>',methods=['PUT'])
+def update_point(point_id):
+    point = Point.query.get(point_id)
+    if not point:
         abort(404)  
     data = request.get_json()
-    tweet.name=data.get('name',tweet.name)
-    tweet.adress=data.get('adress',tweet.adress)
+    point.name=data.get('name',point.name)
+    point.adress=data.get('adress',point.adress)
     db.session.commit()
     return jsonify({
-        'id': tweet.id, 
-        'name': tweet.name,
-        'adress':tweet.adress,
-        'latitude':tweet.latitude,
-        'longitude':tweet.latitude,
-        'user_id':tweet.user_id}), 200
+        'id': point.id, 
+        'name': point.name,
+        'address':point.adress,
+        'latitude':point.latitude,
+        'longitude':point.latitude,
+        'user_id':point.user_id}), 200
     
-@app.route('/tweets/<int:tweets_id>', methods=['DELETE'])
-def delete_tweet(tweet_id):
-    tweet = User.query.get(tweet_id)
-    if not tweet:
+@app.route('/points/<int:points_id>', methods=['DELETE'])
+def delete_point(point_id):
+    point = Point.query.get(point_id)
+    if not point:
         abort(404)  
-    db.session.delete(tweet)
+    db.session.delete(point)
     db.session.commit()
     return jsonify({'message': ' 登録情報は削除されました'}), 200
 #経路登録
@@ -182,7 +201,7 @@ def delete_waypoint(waypoint_id):
 def favorite_route(route_id):
     route = Route.query.get_or_404(route_id)
     user_id = request.json.get('user_id')
-    if route.favorited_by:
+    if route.favorited:
         return jsonify({'message': '既にお気に入り登録しています。'}), 400
     route.user_id = user_id
     db.session.commit()
@@ -191,10 +210,23 @@ def favorite_route(route_id):
 @app.route('/routes/<int:route_id>/unfavorite', methods=['POST'])
 def unfavorite_route(route_id):
     route = Route.query.get_or_404(route_id)
-    if not route.favorited_by:
+    if not route.favorited:
         return jsonify({'message': 'お気に入りに登録されていません。'}), 400
     route.user_id = None
     db.session.commit()
     return jsonify({'message': 'お気に入りを解除しました。'}), 200
+
+@app.route('/user/<int:user_id>/favorited_routes', methods=['GET'])
+def get_favorited_routes(user_id):
+    favorited_routes = Route.query.filter_by(user_id=user_id, favorited=True).all()
+    data = [{
+        'id': route.id,
+        'user_id': route.user_id,
+        'start_point': route.start_point,
+        'end_point': route.end_point,
+        'favorited': route.favorited
+    } for route in favorited_routes]
+
+    return jsonify(data), 200
 if __name__ == "__main__":
     app.run(debug=True)
