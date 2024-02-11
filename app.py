@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash,check_password_hash
-from flask_login import LoginManager,login_required
+from flask_login import LoginManager,login_required,current_user
 import os
 
 app=Flask(__name__)
@@ -46,12 +46,14 @@ class Route(db.Model):
     end_point_id = db.Column(db.Integer, db.ForeignKey('point.id'), nullable=False)  
     waypoints = db.relationship('Waypoint', backref='route', lazy=True)
     favorited = db.Column(db.Boolean, default=False)
-    start_location = db.relationship('Location', foreign_keys=[start_point_id], uselist=False, backref='route_start')
-    end_location = db.relationship('Location', foreign_keys=[end_point_id], uselist=False, backref='route_end')
+    start_location = db.relationship('Point', foreign_keys=[start_point_id], uselist=False, backref='route_start')
+    end_location = db.relationship('Point', foreign_keys=[end_point_id], uselist=False, backref='route_end')
 class Waypoint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     route_id = db.Column(db.Integer, db.ForeignKey('route.id'), nullable=False)
-    location = db.Column(db.String(128), nullable=False)
+    waypoint = db.Column(db.String(128), nullable=False)
+    waypoint_id = db.Column(db.Integer, db.ForeignKey('point.id'), nullable=False) 
+    way_location = db.relationship('Point', foreign_keys=[waypoint_id], uselist=False, backref='route_way')
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -144,9 +146,10 @@ def delete_point(point_id):
     return jsonify({'message': ' 登録情報は削除されました'}), 200
 #経路登録
 @app.route('/routes',methods=['POST'])
+@login_required
 def create_route():
     data=request.get_json()
-    user_id=data['user_id']
+    user_id=current_user.id
     start_point=data['start_point']
     end_point=data['end_point']
     waypoints=data.get('waypoint',[])
@@ -154,7 +157,7 @@ def create_route():
     db.session.add(route)
     db.session.flush()
     for waypoint_data in waypoints:
-        waypoint=Waypoint(route_id=route.id,location=waypoint_data['location'])
+        waypoint=Waypoint(route_id=route.id,waypoint=waypoint_data['waypoint'])
         db.session.add(waypoint)
     db.session.commit()
     return jsonify({'route_id':route.id,'waypoints':len(waypoints)}),201
